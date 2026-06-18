@@ -12,7 +12,7 @@ import {
   resolvePackageJsonPath,
   resolveTarEntryPath,
   trimLeadingSeparator,
-} from "./cli.js";
+} from "./index.js";
 
 function createTar(entries: Array<{ name: string; content: string }>): Buffer {
   const records: Buffer[] = [];
