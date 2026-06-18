@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, posix } from "node:path";
@@ -5,9 +6,10 @@ import { spawn } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 
 type ParsedArgs = {
-  target: string;
+  target?: string;
   packageJsonPath: string;
   registry: string;
+  fromCwd: boolean;
   forwardedArgs: string[];
 };
 
@@ -30,16 +32,31 @@ const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) {
     throw new Error(
-      "Usage: pnpm-dlx <target> [--path <package.json path>] [--registry <url>] [--] [...args]",
+      "Usage: pnpm-dlx <target> [--path <package.json path>] [--registry <url>] [--] [...args]\n   or: pnpm-dlx --from-cwd [--path <package.json path>] [--] <pnpm args...>",
     );
   }
 
-  const [target, ...rest] = argv;
+  const fromCwd = argv.includes("--from-cwd");
+  const rest = fromCwd ? argv.filter((arg) => arg !== "--from-cwd") : argv;
+  let target: string | undefined;
   let packageJsonPath = "package.json";
   let registry = DEFAULT_REGISTRY;
   const forwardedArgs: string[] = [];
+  let startIndex = 0;
 
-  for (let index = 0; index < rest.length; index += 1) {
+  if (!fromCwd) {
+    [target] = rest;
+
+    if (!target) {
+      throw new Error(
+        "Usage: pnpm-dlx <target> [--path <package.json path>] [--registry <url>] [--] [...args]",
+      );
+    }
+
+    startIndex = 1;
+  }
+
+  for (let index = startIndex; index < rest.length; index += 1) {
     const arg = rest[index];
 
     if (arg === "--") {
@@ -74,10 +91,28 @@ export function parseArgs(argv: string[]): ParsedArgs {
     forwardedArgs.push(arg);
   }
 
+  if (fromCwd) {
+    const localPackageJsonPath = join(
+      process.cwd(),
+      resolvePackageJsonPath(packageJsonPath),
+    );
+
+    if (!existsSync(localPackageJsonPath)) {
+      throw new Error(`pnpm not found at ${localPackageJsonPath}`);
+    }
+
+    if (forwardedArgs.length === 0) {
+      throw new Error(
+        "Usage: pnpm-dlx --from-cwd [--path <package.json path>] [--] <pnpm args...>",
+      );
+    }
+  }
+
   return {
     target,
     packageJsonPath,
     registry,
+    fromCwd,
     forwardedArgs: trimLeadingSeparator(forwardedArgs),
   };
 }
@@ -425,19 +460,42 @@ async function loadPackageJsonFromGitHub(
   }
 }
 
+async function loadPackageJsonFromCwd(
+  packageJsonPath: string,
+): Promise<{ packageJson: PackageJsonLike; resolvedPackageJsonPath: string }> {
+  const resolvedPackageJsonPath = join(
+    process.cwd(),
+    resolvePackageJsonPath(packageJsonPath),
+  );
+  const packageJsonText = await readFile(resolvedPackageJsonPath, "utf8");
+
+  return {
+    packageJson: JSON.parse(packageJsonText) as PackageJsonLike,
+    resolvedPackageJsonPath,
+  };
+}
+
 export async function main(argv = process.argv.slice(2)): Promise<void> {
-  const { target, packageJsonPath, registry, forwardedArgs } = parseArgs(argv);
+  const { target, packageJsonPath, registry, fromCwd, forwardedArgs } =
+    parseArgs(argv);
   let packageJson: PackageJsonLike;
   let resolvedPackageJsonPath: string;
   let cleanupDirectory: string | undefined;
 
   try {
-    if (isGitHubTarget(target)) {
+    if (fromCwd) {
+      ({ packageJson, resolvedPackageJsonPath } =
+        await loadPackageJsonFromCwd(packageJsonPath));
+    } else if (target && isGitHubTarget(target)) {
       ({ packageJson, resolvedPackageJsonPath } = await loadPackageJsonFromGitHub(
         target,
         packageJsonPath,
       ));
     } else {
+      if (!target) {
+        throw new Error("Target is required unless --from-cwd is set");
+      }
+
       const tarballPath = await downloadRegistryTarball(target, registry);
       cleanupDirectory = dirname(tarballPath);
       ({ packageJson, resolvedPackageJsonPath } =
@@ -446,14 +504,22 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 
     const pnpmVersion = extractPnpmVersion(packageJson, resolvedPackageJsonPath);
 
-    await runCommand("npx", [
-      "-y",
-      `pnpm@${pnpmVersion}`,
-      "dlx",
-      "-y",
-      target,
-      ...forwardedArgs,
-    ]);
+    if (fromCwd) {
+      await runCommand("npx", ["-y", `pnpm@${pnpmVersion}`, ...forwardedArgs]);
+    } else {
+      if (!target) {
+        throw new Error("Target is required unless --from-cwd is set");
+      }
+
+      await runCommand("npx", [
+        "-y",
+        `pnpm@${pnpmVersion}`,
+        "dlx",
+        "-y",
+        target,
+        ...forwardedArgs,
+      ]);
+    }
   } finally {
     if (cleanupDirectory) {
       await rm(cleanupDirectory, { recursive: true, force: true }).catch(

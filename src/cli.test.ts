@@ -69,6 +69,7 @@ test("parseArgs reads target, path, and forwarded args", () => {
       target: "github:cmdforge/tip",
       packageJsonPath: "apps/ui/package.json",
       registry: "https://registry.npmjs.org",
+      fromCwd: false,
       forwardedArgs: ["ui", "open"],
     },
   );
@@ -81,6 +82,7 @@ test("parseArgs trims a leading forwarded separator", () => {
       target: "github:cmdforge/tip",
       packageJsonPath: "package.json",
       registry: "https://registry.npmjs.org",
+      fromCwd: false,
       forwardedArgs: ["ui", "open"],
     },
   );
@@ -93,9 +95,30 @@ test("parseArgs reads a custom registry", () => {
       target: "@scope/pkg",
       packageJsonPath: "package.json",
       registry: "https://registry.example.com",
+      fromCwd: false,
       forwardedArgs: [],
     },
   );
+});
+
+test("parseArgs supports from-cwd mode", () => {
+  assert.deepEqual(parseArgs(["--from-cwd", "--", "dlx", "-y", "tip"]), {
+    target: undefined,
+    packageJsonPath: "package.json",
+    registry: "https://registry.npmjs.org",
+    fromCwd: true,
+    forwardedArgs: ["dlx", "-y", "tip"],
+  });
+});
+
+test("parseArgs supports from-cwd mode without an explicit separator", () => {
+  assert.deepEqual(parseArgs(["--from-cwd", "install", "--frozen-lockfile"]), {
+    target: undefined,
+    packageJsonPath: "package.json",
+    registry: "https://registry.npmjs.org",
+    fromCwd: true,
+    forwardedArgs: ["install", "--frozen-lockfile"],
+  });
 });
 
 test("trimLeadingSeparator only removes the first separator", () => {

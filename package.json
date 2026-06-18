@@ -27,5 +27,8 @@
   "allowScripts": {
     "esbuild": true,
     "fsevents": true
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
