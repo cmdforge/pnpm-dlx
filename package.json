@@ -1,0 +1,31 @@
+{
+  "name": "@cmdforge/pnpm-dlx",
+  "version": "0.0.2",
+  "author": {
+    "name": "Fluttershy",
+    "url": "https://github.com/Fluttershy"
+  },
+  "description": "Run 'pnpm dlx <target> [options]' over npx, removing the pnpm dependency.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cmdforge/pnpm-dlx.git"
+  },
+  "type": "module",
+  "bin": {
+    "pnpm-dlx": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "prepare": "npm run build",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.3",
+    "typescript": "^5.8.0",
+    "tsx": "4.22.4"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "fsevents": true
+  }
+}
