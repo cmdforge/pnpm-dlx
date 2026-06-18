@@ -447,8 +447,10 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     const pnpmVersion = extractPnpmVersion(packageJson, resolvedPackageJsonPath);
 
     await runCommand("npx", [
+      "-y",
       `pnpm@${pnpmVersion}`,
       "dlx",
+      "-y",
       target,
       ...forwardedArgs,
     ]);
