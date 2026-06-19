@@ -1,6 +1,7 @@
 {
   "name": "@cmdforge/pnpm-dlx",
   "version": "0.0.3",
+  "license": "MIT",
   "author": {
     "name": "Fluttershy",
     "url": "https://github.com/Fluttershy"
